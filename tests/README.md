@@ -1,0 +1,1 @@
+Contains test cases to verify the functionality of the text editor.

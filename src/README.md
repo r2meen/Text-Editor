@@ -1,0 +1,1 @@
+Contains the C++ source files for the text editor.
