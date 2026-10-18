@@ -1,36 +1,94 @@
 #include <iostream>
-#include "../include/SearchReplace.h"
+#include <string>
+#include <vector>
+#include "../include/Search.h"
+#include "../include/Replace.h"
+
+using namespace std;
 
 int main()
 {
-    SearchReplace sr;
+    string document;
+    string line;
+    int choice;
 
-    string document[3] = {
-        "hello world",
-        "hello everyone",
-        "world of hello"
-    };
+    cout << "Enter document text." << endl;
+    cout << "Type END on a separate line when finished." << endl;
+    cout << "----------------------------------------" << endl;
 
-    sr.search(document, 3, "hello");
-
-    cout << "Occurrences found: " << sr.getSize() << endl;
-
-    sr.replaceOne(document, 3, "hello", "hi", 0);
-
-    cout << "\nAfter replacing one occurrence:\n";
-
-    for (int i = 0; i < 3; i++)
+    while (true)
     {
-        cout << document[i] << endl;
+        getline(cin, line);
+
+        if (line == "END")
+        {
+            break;
+        }
+
+        document += line;
+        document += '\n';
     }
 
-    sr.replaceAll(document, 3, "world", "universe");
+    cout << "\n1. Search" << endl;
+    cout << "2. Replace" << endl;
+    cout << "Enter choice: ";
+    cin >> choice;
+    cin.ignore();
 
-    cout << "\nAfter replacing all occurrences of world:\n";
-
-    for (int i = 0; i < 3; i++)
+    if (choice == 1)
     {
-        cout << document[i] << endl;
+        string searchText;
+
+        cout << "Enter text to search: ";
+        getline(cin, searchText);
+
+        vector<SearchLocation> locations =
+            Search::findAll(document, searchText);
+
+        cout << "\nOccurrences found: "
+             << locations.size() << endl;
+
+        if (locations.empty())
+        {
+            cout << "Text not found." << endl;
+        }
+        else
+        {
+            for (const SearchLocation& location : locations)
+            {
+                cout << "Line: " << location.line
+                     << ", Column: " << location.column
+                     << endl;
+            }
+        }
+    }
+    else if (choice == 2)
+    {
+        string searchText;
+        string replaceText;
+
+        cout << "Enter text to search: ";
+        getline(cin, searchText);
+
+        cout << "Enter replacement text: ";
+        getline(cin, replaceText);
+
+        size_t count =
+            Replace::replaceAll(
+                document,
+                searchText,
+                replaceText
+            );
+
+        cout << "\nReplacements made: "
+             << count << endl;
+
+        cout << "\nUpdated document:" << endl;
+        cout << document;
+    }
+    else
+    {
+        cout << "Invalid choice." << endl;
     }
 
     return 0;
