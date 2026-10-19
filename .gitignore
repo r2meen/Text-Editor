@@ -1,2 +1,7 @@
 *.o
 *.exe
+build/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+Testing/
