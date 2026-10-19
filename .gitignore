@@ -1,5 +1,42 @@
+# ==============================
+# C++ Text Editor - Git Ignore
+# ==============================
+
+# Dependency and compiler-generated files
+*.d
+*.o
+*.obj
+*.lo
+*.slo
+*.gch
+*.pch
+*.mod
+*.smod
+
+# Compiled libraries
+*.a
+*.lib
+*.la
+*.lai
+*.so
+*.so.*
+*.dylib
+*.dll
+
+# Executables and application binaries
+*.exe
+*.out
+*.app
+*.bin
+
+# Debugging and profiling output
+*.pdb
+*.ilk
+*.dwo
+*.prof
+*.gcda
+*.gcno
+*.gcov
+
+# CMake build output
 build/
-cmake-build-*/
-CMakeFiles/
-CMakeCache.txt
-Testing/
