@@ -1,1 +1,110 @@
+# ==============================
+# C++ Text Editor - Git Ignore
+# ==============================
+
+# Dependency and compiler-generated files
+*.d
+*.o
+*.obj
+*.lo
+*.slo
+*.gch
+*.pch
+*.mod
+*.smod
+
+# Compiled libraries
+*.a
+*.lib
+*.la
+*.lai
+*.so
+*.so.*
+*.dylib
+*.dll
+
+# Executables and application binaries
+*.exe
+*.out
+*.app
+*.bin
+
+# Debugging and profiling output
+*.pdb
+*.ilk
+*.dwo
+*.prof
+*.gcda
+*.gcno
+*.gcov
+
+# CMake build output
 build/
+Build/
+build-*/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+install_manifest.txt
+compile_commands.json
+CTestTestfile.cmake
+Testing/
+Makefile
+
+# Other generated build directories
+out/
+dist/
+Debug/
+Release/
+x64/
+x86/
+
+# IDE and editor settings
+.vscode/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.swp
+*.swn
+*~
+.DS_Store
+Thumbs.db
+
+# Temporary files and logs
+*.tmp
+*.temp
+*.log
+*.bak
+*.old
+*.orig
+*.rej
+*.cache
+
+# Test artifacts and coverage reports
+test-results/
+test-output/
+coverage/
+*.gcov
+*.lcov
+*.profraw
+
+# Package managers and downloaded dependencies
+vcpkg_installed/
+_conan/
+conanbuildinfo.*
+conan.lock
+
+# Environment-specific configuration
+.env
+.env.*
+!.env.example
+
+# OS-specific generated files
+Desktop.ini
+ehthumbs.db
+
+# Keep project source, headers, documentation,
+# CMakeLists.txt, and test source files tracked.
