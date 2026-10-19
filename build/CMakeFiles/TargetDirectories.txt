@@ -1,2 +1,0 @@
-/home/rameenzulfi0/My Files/DSA/Text-Editor/build/CMakeFiles/edit_cache.dir
-/home/rameenzulfi0/My Files/DSA/Text-Editor/build/CMakeFiles/rebuild_cache.dir
