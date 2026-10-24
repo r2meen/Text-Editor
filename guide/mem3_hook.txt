@@ -1,4 +1,4 @@
-Connection to my code:
+Connection to Undo System Code:
 
 Member 1 (Document): make the linked-list Document inherit UndoableDocument and provide these four functions: insertText, deleteText, insertLine and deleteLine. Undo only needs those.
 Member 2 (Replace): after each successful replace, call undo.recordReplace(line, col, oldText, newText). For Replace All, put undo.beginGroup() before the loop and undo.endGroup() after it. One undo then reverses every replacement from that Replace All.
