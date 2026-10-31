@@ -1,5 +1,0 @@
-cd "/home/user/Text-Editor"
-mkdir -p build && cd build
-cmake ..
-make
-./file name you want to run

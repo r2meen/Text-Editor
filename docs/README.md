@@ -1,1 +1,0 @@
-Contains project documentation, design details, and user instructions.
