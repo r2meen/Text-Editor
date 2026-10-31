@@ -1,0 +1,95 @@
+1. Test document
+
+Option 1 – Add a New Line.
+
+Hello world, welcome to C++ programming.
+Hello everyone! Hello developers!
+I love coding because coding is creative.
+Data Structures and Algorithms are interesting.
+Stack is a data structure. Stack follows LIFO.
+This text editor supports search and replace.
+Practice makes programming easier.
+
+2. Search test cases
+
+Option 3 – Search for a Word.
+
+Test   Search input	    Expected result
+S1	     Hello	          3 matches
+S2	    coding	          2 matches
+S3	     stack	          2 matches (case-insensitive)
+S4	  programming      	  2 matches
+S5  	Python	          No matches
+S6	     hello	          3 matches
+
+3. Replace test cases
+
+Use Option 4 – Replace First and Option 5 – Replace All.
+
+Test	Operation	       Old word	    New word	    Expected result
+R1	    Replace First	    Hello	      Hi	      Only first Hello changes
+R2	    Replace All	        coding	   programming	      2 replacements
+R3	    Replace All	        Stack	     Queue	          2 replacements
+R4	    Replace First	    world	   universe	      Only first occurrence changes
+R5	    Replace All	        Python	    Java	          0 replacements
+
+Important: Test Replace All with words that have different replacement lengths. This helps detect position and undo errors.
+
+4. Insert text test cases
+
+Use Option 6 – Insert Text into a Line.
+
+Test	Line	Column	 Text to insert	    Expected result
+I1  	1	    7	        beautiful	    Inserts after Hello
+I2  	2	    1	        Welcome!	    Inserts at beginning
+I3	    3	    10	          very	        Inserts at specified position
+I4	    1	    1	          Start	        Inserts at beginning
+I5	    1	    100	          Test	        Should reject invalid position
+
+5. Delete text test cases
+
+Use Option 7 – Delete Text from a Line.
+
+Test	Line	Starting column	    Length	    Expected result
+D1	    1	        1	               5	    Deletes Hello
+D2	    2	        1	               8	    Deletes first 8 characters
+D3	    3	        5	               3	    Deletes 3 characters
+D4	    1	        1	               0	    Should reject invalid length
+D5	    1	        100	               5	    Should reject invalid position
+
+6. Undo test cases
+
+Use Option 8 – Undo Last Operation.
+
+Test	Action before undo	    Expected result
+U1	    Add a new line	        Added line disappears
+U2	    Insert text	            Inserted text disappears
+U3	    Delete text	            Deleted text returns
+U4	    Replace First	        Original word returns
+U5	    Replace All	            All replaced words return
+U6	    Undo repeatedly	        Each operation reverses in the correct order
+U7	    Undo on empty history	Displays an appropriate message
+
+Especially test U5: Replace All, then Undo. Check that every original word is restored, even when the replacement has a different length.
+
+7. Document statistics
+
+Use Option 9 – Document Statistics.
+
+Test	                          Expected result
+Empty document	                  0 lines, 0 characters
+Seven-line document	              7 lines
+After inserting text	          Character count increases
+After deleting text	              Character count decreases
+After adding a line	              Line count increases
+After undoing an added line	      Line count decreases
+
+8. Menu and input validation
+
+Test	Input	                Expected result
+M1	    Menu option 0	        Invalid option
+M2	    Menu option 11	        Invalid option
+M3	    Enter abc	            Invalid input message
+M4	    Enter blank input	    Handled safely
+M5	    Option 10	            Exits program
+M6	    Display empty document	Shows empty document message

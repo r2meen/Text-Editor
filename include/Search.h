@@ -5,6 +5,8 @@
 #include <string>
 #include <vector>
 
+class Document;
+
 struct SearchLocation {
     std::size_t line;
     std::size_t column;
@@ -12,22 +14,35 @@ struct SearchLocation {
 
 class Search {
 public:
-    // Finds every occurrence and returns its line and column.
+    // Search a normal string
     static std::vector<SearchLocation> findAll(
         const std::string& document,
         const std::string& searchText
     );
 
-    // Checks whether the search text exists.
+    // Search the actual linked-list document
+    static std::vector<SearchLocation> findAll(
+        const Document& document,
+        const std::string& searchText
+    );
+
     static bool contains(
         const std::string& document,
         const std::string& searchText
     );
 
-    // Finds the first occurrence.
-    // Returns line 0, column 0 if nothing is found.
+    static bool contains(
+        const Document& document,
+        const std::string& searchText
+    );
+
     static SearchLocation findFirst(
         const std::string& document,
+        const std::string& searchText
+    );
+
+    static SearchLocation findFirst(
+        const Document& document,
         const std::string& searchText
     );
 };

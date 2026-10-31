@@ -1,0 +1,185 @@
+We'll add New Document, Open File, Save File, and Save As to your existing C++ text editor.
+
+We'll do this step by step so we don't break your working Search, Replace, Insert, Delete, and Undo features.
+
+## Step 1: Understand what we're adding
+
+Your text editor will support these operations:
+
+1. New Document: Clear the current document and start fresh.
+2. Open File: Read an existing `.txt` file and load its contents into your editor.
+3. Save File: Save the current document to its existing filename.
+4. Save As: Save the current document using a new filename or location.
+
+## Step 2: Add the required libraries
+
+At the top of `main.cpp`, add:
+
+```
+#include <fstream>
+#include <string>
+```
+
+`fstream` allows us to read and write files.
+
+## Step 3: Create a variable for the current filename
+
+Inside `main()`, before the menu loop, add:
+
+```
+string currentFile = "";
+```
+
+This keeps track of which file you're currently editing.
+
+## Step 4: Create the file-handling functions
+
+Add these functions above `main()`.
+
+A. New Document
+
+```
+void newDocument(Document& doc, string& currentFile)
+{
+    doc.clear();
+    currentFile = "";
+
+    cout << "New document created!\n";
+}
+```
+
+B. Open File
+
+```
+void openFile(Document& doc, string& currentFile)
+{
+    string filename;
+
+    cout << "Enter filename: ";
+    getline(cin, filename);
+
+    ifstream file(filename);
+
+    if (!file.is_open())
+    {
+        cout << "Unable to open file!\n";
+        return;
+    }
+
+    doc.clear();
+
+    string line;
+
+    while (getline(file, line))
+    {
+        doc.appendLine(line);
+    }
+
+    file.close();
+
+    currentFile = filename;
+
+    cout << "File opened successfully!\n";
+}
+```
+
+C. Save As
+
+```
+void saveAs(Document& doc, string& currentFile)
+{
+    string filename;
+
+    cout << "Enter filename: ";
+    getline(cin, filename);
+
+    ofstream file(filename);
+
+    if (!file.is_open())
+    {
+        cout << "Unable to save file!\n";
+        return;
+    }
+
+    for (int i = 0; i < doc.getLineCount(); i++)
+    {
+        file << doc.getLine(i) << '\n';
+    }
+
+    file.close();
+
+    currentFile = filename;
+
+    cout << "File saved successfully!\n";
+}
+```
+
+D. Save File
+
+```
+void saveFile(Document& doc, string& currentFile)
+{
+    if (currentFile.empty())
+    {
+        saveAs(doc, currentFile);
+        return;
+    }
+
+    ofstream file(currentFile);
+
+    if (!file.is_open())
+    {
+        cout << "Unable to save file!\n";
+        return;
+    }
+
+    for (int i = 0; i < doc.getLineCount(); i++)
+    {
+        file << doc.getLine(i) << '\n';
+    }
+
+    file.close();
+
+    cout << "File saved successfully!\n";
+}
+```
+
+## Step 5: Add the options to your menu
+
+Your existing menu has 10 options. Add these four:
+
+```
+11. New Document
+12. Open File
+13. Save File
+14. Save As
+```
+
+Then add these cases inside your `switch(choice)`:
+
+```
+case 11:
+    newDocument(doc, currentFile);
+    break;
+
+case 12:
+    openFile(doc, currentFile);
+    break;
+
+case 13:
+    saveFile(doc, currentFile);
+    break;
+
+case 14:
+    saveAs(doc, currentFile);
+    break;
+```
+
+## Important before you compile
+
+This is the basic implementation. There are two things we'll improve afterward:
+
+- Ask before clearing a document that has unsaved changes.
+- Make Undo history behave correctly when a new file is opened or created.
+
+Let's do this carefully. First, add the functions from Step 4 to your `main.cpp`. Send me your updated `main.cpp` or the `Document.h` file if you get a compilation error, and we'll integrate everything with your actual code.
