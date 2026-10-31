@@ -3,6 +3,7 @@
 #include <limits>
 #include <sstream>
 #include <vector>
+#include<fstream>
 
 #include "include/Document.h"
 #include "include/Search.h"
@@ -90,11 +91,23 @@ void displayMenu()
     cout << Color::GREEN << "8." << Color::RESET
          << " Undo last operation\n";
 
-    cout << Color::GREEN << "9." << Color::RESET
-         << " Document statistics\n";
+  cout << Color::GREEN << "9." << Color::RESET
+     << " Document statistics\n";
 
-    cout << Color::RED << "10." << Color::RESET
-         << " Exit\n";
+cout << Color::GREEN << "10." << Color::RESET
+     << " New Document\n";
+
+cout << Color::GREEN << "11." << Color::RESET
+     << " Open File\n";
+
+cout << Color::GREEN << "12." << Color::RESET
+     << " Save File\n";
+
+cout << Color::GREEN << "13." << Color::RESET
+     << " Save As\n";
+
+cout << Color::RED << "14." << Color::RESET
+     << " Exit\n";
 
     cout << Color::BLUE << "--------------------------------------------\n";
     cout << Color::RESET;
@@ -210,9 +223,25 @@ void displayChoice(int choice)
     case 9:
         action = "Document Statistics";
         break;
-    case 10:
-        action = "Exit";
-        break;
+   case 10:
+    action = "New Document";
+    break;
+
+case 11:
+    action = "Open File";
+    break;
+
+case 12:
+    action = "Save File";
+    break;
+
+case 13:
+    action = "Save As";
+    break;
+
+case 14:
+    action = "Exit";
+    break;
     default:
         action = "Invalid Option";
     }
@@ -221,14 +250,148 @@ void displayChoice(int choice)
     cout << "\n>>> You chose: " << action << "\n";
     cout << Color::RESET;
 }
+// Create a new empty document
+void newDocument(Document& doc, UndoManager& undo, string& currentFile)
+{
+    doc.clear();
+    undo.clear();
+    currentFile = "";
 
+    cout << Color::GREEN << "\nNew document created successfully!\n"
+         << Color::RESET;
+}
+
+// Open an existing text file
+void openFile(Document& doc, UndoManager& undo, string& currentFile)
+{
+    string filename;
+
+    cout << "Enter file name to open (e.g. notes.txt): ";
+    getline(cin, filename);
+
+    ifstream file(filename);
+
+    if (!file.is_open())
+    {
+        cout << Color::RED << "Error: Could not open file!\n"
+             << Color::RESET;
+        return;
+    }
+
+    // Read the file first, so a failed read doesn't erase the current document
+    vector<string> lines;
+    string line;
+
+    while (getline(file, line))
+    {
+        lines.push_back(line);
+    }
+
+    if (file.bad())
+    {
+        cout << Color::RED << "Error: Problem reading the file!\n"
+             << Color::RESET;
+        return;
+    }
+
+    doc.clear();
+    undo.clear();
+
+    for (const string& text : lines)
+    {
+        doc.appendLine(text);
+    }
+
+    currentFile = filename;
+
+    cout << Color::GREEN << "File opened successfully!\n"
+         << Color::RESET;
+}
+
+// Save the document with a new file name
+void saveAs(Document& doc, string& currentFile)
+{
+    string filename;
+
+    cout << "Enter file name (e.g. notes.txt): ";
+    getline(cin, filename);
+
+    if (filename.empty())
+    {
+        cout << Color::RED << "File name cannot be empty!\n"
+             << Color::RESET;
+        return;
+    }
+
+    ofstream file(filename);
+
+    if (!file.is_open())
+    {
+        cout << Color::RED << "Error: Could not save file!\n"
+             << Color::RESET;
+        return;
+    }
+
+    for (int i = 0; i < doc.getLineCount(); i++)
+    {
+        file << doc.getLine(i) << '\n';
+    }
+
+    if (!file)
+    {
+        cout << Color::RED << "Error: Problem writing to file!\n"
+             << Color::RESET;
+        return;
+    }
+
+    currentFile = filename;
+
+    cout << Color::GREEN << "File saved successfully as "
+         << currentFile << "!\n" << Color::RESET;
+}
+
+// Save the document using its current file name
+void saveFile(Document& doc, string& currentFile)
+{
+    if (currentFile.empty())
+    {
+        saveAs(doc, currentFile);
+        return;
+    }
+
+    ofstream file(currentFile);
+
+    if (!file.is_open())
+    {
+        cout << Color::RED << "Error: Could not save file!\n"
+             << Color::RESET;
+        return;
+    }
+
+    for (int i = 0; i < doc.getLineCount(); i++)
+    {
+        file << doc.getLine(i) << '\n';
+    }
+
+    if (!file)
+    {
+        cout << Color::RED << "Error: Problem writing to file!\n"
+             << Color::RESET;
+        return;
+    }
+
+    cout << Color::GREEN << "File saved successfully!\n"
+         << Color::RESET;
+}
 int main()
 {
 
-    Document doc;
-    UndoManager undo;
+   Document doc;
+UndoManager undo;
 
-    int choice;
+string currentFile = "";
+
+int choice;
 
     displayHeader();
 
@@ -548,27 +711,54 @@ int main()
                  << "--------------------------------------------\n"
                  << Color::RESET;
 
+                   break;
+        }
+
+        // NEW DOCUMENT
+        case 10:
+        {
+            newDocument(doc, undo, currentFile);
+            break;
+        }
+
+        // OPEN FILE
+        case 11:
+        {
+            openFile(doc, undo, currentFile);
+            break;
+        }
+
+        // SAVE FILE
+        case 12:
+        {
+            saveFile(doc, currentFile);
+            break;
+        }
+
+        // SAVE AS
+        case 13:
+        {
+            saveAs(doc, currentFile);
             break;
         }
 
         // EXIT
-        case 10:
+        case 14:
         {
             cout << Color::GREEN
                  << "\nThank you for using Text Editor!\n"
                  << Color::RESET;
             break;
         }
-
         default:
         {
             cout << Color::RED
-                 << "Invalid choice! Select 1-10.\n"
+                 << "Invalid choice! Select 1-14.\n"
                  << Color::RESET;
         }
         }
 
-    } while (choice != 10);
+    } while (choice != 14);
 
     return 0;
 }
