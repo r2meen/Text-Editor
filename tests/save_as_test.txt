@@ -1,4 +1,0 @@
-Hello Saif!
-This is my first file management test.
-Testing Open File functionality.
-This line is added to test Save File.
