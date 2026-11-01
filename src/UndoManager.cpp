@@ -1,184 +1,252 @@
+
 #include "UndoManager.h"
 
 UndoManager::UndoManager()
-    : nextGroupId(1), activeGroup(0), groupDepth(0), undoing(false), message("") {}
+    : nextGroupId(1), activeGroup(0),
+      undoing(false), message("") {}
 
-// ------------------------------------------------------------
-// Recording
-// ------------------------------------------------------------
+// RECORDING OPERATIONS
 
 bool UndoManager::record(OpType type, int line, int col,
-                         const std::string& text, const std::string& newText) {
-    // Edits made BY undo() must not be recorded again.
-    if (undoing) return false;
-    if (line < 0 || col < 0) return false;
+                         const std::string& text,
+                         const std::string& newText) {
 
-    EditOperation op;
-    op.type = type;
-    op.line = line;
-    op.col = col;
-    op.text = text;
-    op.newText = newText;
-    op.groupId = activeGroup;
-    history.push(op);
+    if (undoing || line < 0 || col < 0)
+        return false;
+
+    EditOperation operation;
+
+    operation.type = type;
+    operation.line = line;
+    operation.col = col;
+    operation.text = text;
+    operation.newText = newText;
+    operation.groupId = activeGroup;
+
+    history.push(operation);
+
     return true;
 }
 
-bool UndoManager::recordInsert(int line, int col, const std::string& insertedText) {
-    if (insertedText.empty()) return false;
+bool UndoManager::recordInsert(int line, int col,
+                               const std::string& insertedText) {
+    if (insertedText.empty())
+        return false;
+
     return record(OpType::INSERT_TEXT, line, col, insertedText, "");
 }
 
-bool UndoManager::recordDelete(int line, int col, const std::string& deletedText) {
-    if (deletedText.empty()) return false;
+bool UndoManager::recordDelete(int line, int col,
+                               const std::string& deletedText) {
+    if (deletedText.empty())
+        return false;
+
     return record(OpType::DELETE_TEXT, line, col, deletedText, "");
 }
 
-bool UndoManager::recordReplace(int line, int col, const std::string& oldText,
+bool UndoManager::recordReplace(int line, int col,
+                                const std::string& oldText,
                                 const std::string& newText) {
-    if (oldText == newText) return false;
+    if (oldText == newText)
+        return false;
+
     return record(OpType::REPLACE_TEXT, line, col, oldText, newText);
 }
 
-bool UndoManager::recordLineInsert(int index, const std::string& lineText) {
+bool UndoManager::recordLineInsert(int index,
+                                   const std::string& lineText) {
     return record(OpType::INSERT_LINE, index, 0, lineText, "");
 }
 
-bool UndoManager::recordLineDelete(int index, const std::string& lineText) {
+bool UndoManager::recordLineDelete(int index,
+                                   const std::string& lineText) {
     return record(OpType::DELETE_LINE, index, 0, lineText, "");
 }
 
-// ------------------------------------------------------------
-// Grouping
-// ------------------------------------------------------------
+
+// GROUPING OPERATIONS
 
 void UndoManager::beginGroup() {
-    if (undoing) return;
-    if (groupDepth == 0) {
+    if (undoing)
+        return;
+
+    if (activeGroup == 0)
         activeGroup = nextGroupId++;
-    }
-    ++groupDepth;
 }
 
 void UndoManager::endGroup() {
-    if (groupDepth == 0) return;
-    --groupDepth;
-    if (groupDepth == 0) {
-        activeGroup = 0;
-    }
+    activeGroup = 0;
 }
 
-// ------------------------------------------------------------
-// Undo
-// ------------------------------------------------------------
 
-bool UndoManager::applyInverse(UndoableDocument& doc, const EditOperation& op) {
-    switch (op.type) {
+// APPLY UNDO
+
+bool UndoManager::applyUndo(UndoableDocument& doc,
+                            const EditOperation& operation) {
+
+    switch (operation.type) {
+
         case OpType::INSERT_TEXT:
-            return doc.deleteText(op.line, op.col, static_cast<int>(op.text.length()));
+            return doc.deleteText(
+                operation.line,
+                operation.col,
+                static_cast<int>(operation.text.length())
+            );
 
         case OpType::DELETE_TEXT:
-            return doc.insertText(op.line, op.col, op.text);
+            return doc.insertText(
+                operation.line,
+                operation.col,
+                operation.text
+            );
 
         case OpType::REPLACE_TEXT:
-            if (!doc.deleteText(op.line, op.col, static_cast<int>(op.newText.length())))
+
+            if (!doc.deleteText(
+                    operation.line,
+                    operation.col,
+                    static_cast<int>(operation.newText.length())))
                 return false;
-            return doc.insertText(op.line, op.col, op.text);
+
+            return doc.insertText(
+                operation.line,
+                operation.col,
+                operation.text
+            );
 
         case OpType::INSERT_LINE:
-            return doc.deleteLine(op.line);
+            return doc.deleteLine(operation.line);
 
         case OpType::DELETE_LINE:
-            return doc.insertLine(op.line, op.text);
+            return doc.insertLine(
+                operation.line,
+                operation.text
+            );
     }
+
     return false;
 }
 
+
+// UNDO OPERATION
+
 bool UndoManager::undo(UndoableDocument& doc) {
+
     if (history.isEmpty()) {
         message = "Nothing to undo.";
         return false;
     }
 
-    // An unfinished group is closed before undoing.
-    groupDepth = 0;
     activeGroup = 0;
-
     undoing = true;
 
-    EditOperation op = history.top();
-    history.pop();
-    std::string desc = describe(op);
-    int gid = op.groupId;
-    int undone = 0;
+    EditOperation operation = history.top();
 
-    bool ok = applyInverse(doc, op);
-    if (ok) ++undone;
+    int groupId = operation.groupId;
+    int changesUndone = 0;
 
-    // Undo the rest of the same group (popping in LIFO order keeps
-    // positions valid, e.g. Replace All on the same line).
-    while (ok && gid != 0 && !history.isEmpty() && history.top().groupId == gid) {
-        op = history.top();
+    std::string description = describe(operation);
+
+    bool success = true;
+
+    while (!history.isEmpty()) {
+
+        operation = history.top();
+
+        if (changesUndone > 0 &&
+            (groupId == 0 || operation.groupId != groupId))
+            break;
+
+        if (!applyUndo(doc, operation)) {
+            success = false;
+            break;
+        }
+
         history.pop();
-        ok = applyInverse(doc, op);
-        if (ok) ++undone;
+        changesUndone++;
     }
 
     undoing = false;
 
-    if (!ok) {
-        message = "Undo failed: document no longer matches the history (" + desc + ").";
+    if (!success) {
+        message = "Undo failed: document does not match history.";
         return false;
     }
 
-    message = "Undone: " + desc;
-    if (undone > 1) {
-        message += " (" + std::to_string(undone) + " changes)";
-    }
+    message = "Undone: " + description;
+
+    if (changesUndone > 1)
+        message += " (" + std::to_string(changesUndone) + " changes)";
+
     return true;
 }
 
-// ------------------------------------------------------------
-// Info
-// ------------------------------------------------------------
 
-std::string UndoManager::describe(const EditOperation& op) {
-    std::string pos = "line " + std::to_string(op.line + 1);
-    switch (op.type) {
+// OPERATION DESCRIPTION
+
+std::string UndoManager::describe(const EditOperation& operation) {
+
+    std::string position =
+        "line " + std::to_string(operation.line + 1);
+
+    switch (operation.type) {
+
         case OpType::INSERT_TEXT:
-            return "insert \"" + op.text + "\" at " + pos;
+            return "insert \"" + operation.text + "\" at " + position;
+
         case OpType::DELETE_TEXT:
-            return "delete \"" + op.text + "\" at " + pos;
+            return "delete \"" + operation.text + "\" at " + position;
+
         case OpType::REPLACE_TEXT:
-            return "replace \"" + op.text + "\" -> \"" + op.newText + "\" at " + pos;
+            return "replace \"" + operation.text +
+                   "\" with \"" + operation.newText +
+                   "\" at " + position;
+
         case OpType::INSERT_LINE:
-            return "insert " + pos;
+            return "insert " + position;
+
         case OpType::DELETE_LINE:
-            return "delete " + pos;
+            return "delete " + position;
     }
+
     return "unknown operation";
 }
 
-bool UndoManager::canUndo() const { return !history.isEmpty(); }
 
-int UndoManager::historySize() const { return history.size(); }
+// INFORMATION FUNCTIONS
+
+bool UndoManager::canUndo() const {
+    return !history.isEmpty();
+}
+
+int UndoManager::historySize() const {
+    return history.size();
+}
 
 std::string UndoManager::peekDescription() const {
-    if (history.isEmpty()) return "Nothing to undo.";
+    if (history.isEmpty())
+        return "Nothing to undo.";
+
     return describe(history.top());
 }
 
-std::string UndoManager::lastMessage() const { return message; }
-
-bool UndoManager::isUndoing() const { return undoing; }
-
-void UndoManager::clear() {
-    history.clear();
-    groupDepth = 0;
-    activeGroup = 0;
-    message = "";
+std::string UndoManager::lastMessage() const {
+    return message;
 }
 
-// testing command
-//g++ -std=c++17 -Wall -Wextra -Iinclude tests/undo_test.cpp src/UndoManager.cpp -o undo_test
-//./undo_test
+bool UndoManager::isUndoing() const {
+    return undoing;
+}
+
+
+// CLEAR HISTORY
+
+void UndoManager::clear() {
+
+    history.clear();
+
+    activeGroup = 0;
+    undoing = false;
+
+    message = "";
+}
