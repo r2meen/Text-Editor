@@ -22,6 +22,12 @@ private:
     LineNode* tail;
     int lineCount;
 
+    // Cursor cache: remembers the last node that was visited so that
+    // sequential access (display, search, snapshot) is O(1) per line
+    // instead of O(n). Reset whenever the list structure changes.
+    mutable LineNode* cacheNode;
+    mutable int cacheIndex;
+
     LineNode* getNode(int index) const;
 
 public:
@@ -41,6 +47,7 @@ public:
 
     void display() const;
     int countCharacters() const;
+    int countWords() const;
 
     bool setLine(int index, const std::string& text);
 

@@ -1,4 +1,3 @@
-
 #include "Document.h"
 #include <iostream>
 
@@ -7,6 +6,8 @@ Document::Document() {
     head = nullptr;
     tail = nullptr;
     lineCount = 0;
+    cacheNode = nullptr;
+    cacheIndex = 0;
 }
 
 // Delete all nodes from the document
@@ -22,6 +23,8 @@ void Document::clear() {
     head = nullptr;
     tail = nullptr;
     lineCount = 0;
+    cacheNode = nullptr;
+    cacheIndex = 0;
 }
 
 // Destructor: free all allocated memory
@@ -29,18 +32,42 @@ Document::~Document() {
     clear();
 }
 
-// Return the node at the given index
+// Return the node at the given index.
+// Starts from whichever of head / tail / last-visited node is closest,
+// so sequential access is O(1) and random access is at most O(n/2).
 Document::LineNode* Document::getNode(int index) const {
     if (index < 0 || index >= lineCount) {
         return nullptr;
     }
 
-    LineNode* current = head;
+    int distHead = index;
+    int distTail = lineCount - 1 - index;
+    int distCache = (cacheNode != nullptr)
+                        ? (index > cacheIndex ? index - cacheIndex
+                                              : cacheIndex - index)
+                        : lineCount;   // larger than any real distance
 
-    for (int i = 0; i < index; i++) {
-        current = current->next;
+    LineNode* current;
+    int pos;
+
+    if (cacheNode != nullptr && distCache <= distHead && distCache <= distTail) {
+        current = cacheNode;
+        pos = cacheIndex;
+    }
+    else if (distHead <= distTail) {
+        current = head;
+        pos = 0;
+    }
+    else {
+        current = tail;
+        pos = lineCount - 1;
     }
 
+    while (pos < index) { current = current->next; pos++; }
+    while (pos > index) { current = current->prev; pos--; }
+
+    cacheNode = current;
+    cacheIndex = index;
     return current;
 }
 
@@ -104,6 +131,7 @@ bool Document::insertLine(int index, const std::string& text) {
     after->prev = node;
 
     lineCount++;
+    cacheNode = nullptr;   // indexes after this point have shifted
     return true;
 }
 
@@ -131,6 +159,7 @@ bool Document::deleteLine(int index) {
 
     delete node;
     lineCount--;
+    cacheNode = nullptr;   // node pointer / indexes are no longer valid
 
     return true;
 }
@@ -254,4 +283,27 @@ int Document::countCharacters() const {
     }
 
     return total;
+}
+
+// Count words (groups of non-space characters)
+int Document::countWords() const {
+    int words = 0;
+    LineNode* current = head;
+
+    while (current != nullptr) {
+        bool inWord = false;
+
+        for (char ch : current->text) {
+            bool space = (ch == ' ' || ch == '\t');
+
+            if (!space && !inWord)
+                words++;
+
+            inWord = !space;
+        }
+
+        current = current->next;
+    }
+
+    return words;
 }

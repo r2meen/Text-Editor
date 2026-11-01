@@ -1,112 +1,35 @@
 #include "../include/Search.h"
 #include "../include/Document.h"
-#include <cctype>
 
-static bool isWordCharacter(char ch) {
-    return std::isalnum(
-        static_cast<unsigned char>(ch)
-    ) || ch == '_';
-}
-
-static bool matchesIgnoreCase(
-    const std::string& text,
-    std::size_t position,
-    const std::string& searchText
-) {
-    if (position + searchText.length() > text.length())
-        return false;
-
-    for (std::size_t j = 0; j < searchText.length(); j++) {
-        unsigned char a =
-            static_cast<unsigned char>(text[position + j]);
-
-        unsigned char b =
-            static_cast<unsigned char>(searchText[j]);
-
-        if (std::tolower(a) != std::tolower(b))
-            return false;
-    }
-
-    return true;
-}
-
-static bool isWholeWord(
-    const std::string& text,
-    std::size_t position,
-    const std::string& searchText
-) {
-    bool leftBoundary =
-        position == 0 ||
-        !isWordCharacter(text[position - 1]);
-
-    std::size_t endPosition =
-        position + searchText.length();
-
-    bool rightBoundary =
-        endPosition >= text.length() ||
-        !isWordCharacter(text[endPosition]);
-
-    return leftBoundary && rightBoundary;
-}
-
-// Search a normal string
-std::vector<SearchLocation> Search::findAll(
-    const std::string& document,
-    const std::string& searchText
-) {
-    std::vector<SearchLocation> locations;
-
-    if (searchText.empty())
-        return locations;
-
-    std::size_t line = 1;
-    std::size_t column = 1;
-
-    for (std::size_t i = 0; i < document.length(); i++) {
-
-        if (document[i] == '\n') {
-            line++;
-            column = 1;
-            continue;
-        }
-
-        if (matchesIgnoreCase(document, i, searchText) &&
-            isWholeWord(document, i, searchText)) {
-
-            locations.push_back({line, column});
-        }
-
-        column++;
-    }
-
-    return locations;
-}
-
-// Search the linked-list Document
-std::vector<SearchLocation> Search::findAll(
+DynamicArray<SearchLocation> Search::findAll(
     const Document& document,
-    const std::string& searchText
+    const std::string& searchText,
+    const MatchOptions& options
 ) {
-    std::vector<SearchLocation> locations;
+    DynamicArray<SearchLocation> locations;
 
     if (searchText.empty())
         return locations;
 
+    // Sequential getLine(i) is O(1) amortised thanks to the
+    // cursor cache inside Document, so this whole loop is O(N * M).
     for (int i = 0; i < document.getLineCount(); i++) {
 
         std::string lineText = document.getLine(i);
+        std::size_t j = 0;
 
-        for (std::size_t j = 0;
-             j + searchText.length() <= lineText.length();
-             j++) {
+        while (j + searchText.length() <= lineText.length()) {
 
-            if (matchesIgnoreCase(lineText, j, searchText) &&
-                isWholeWord(lineText, j, searchText)) {
+            if (TextUtils::isMatch(lineText, j, searchText, options)) {
+                SearchLocation loc;
+                loc.line = static_cast<std::size_t>(i + 1);
+                loc.column = j + 1;
+                locations.push_back(loc);
 
-                locations.push_back({
-                    static_cast<std::size_t>(i + 1),
-                    j + 1
-                });
+                j += searchText.length();   // no overlapping matches
+            }
+            else {
+                j++;
             }
         }
     }
@@ -115,39 +38,23 @@ std::vector<SearchLocation> Search::findAll(
 }
 
 bool Search::contains(
-    const std::string& document,
-    const std::string& searchText
-) {
-    return !findAll(document, searchText).empty();
-}
-
-bool Search::contains(
     const Document& document,
-    const std::string& searchText
+    const std::string& searchText,
+    const MatchOptions& options
 ) {
-    return !findAll(document, searchText).empty();
-}
-
-SearchLocation Search::findFirst(
-    const std::string& document,
-    const std::string& searchText
-) {
-    auto results = findAll(document, searchText);
-
-    if (results.empty())
-        return {0, 0};
-
-    return results[0];
+    return !findAll(document, searchText, options).empty();
 }
 
 SearchLocation Search::findFirst(
     const Document& document,
-    const std::string& searchText
+    const std::string& searchText,
+    const MatchOptions& options
 ) {
-    auto results = findAll(document, searchText);
+    DynamicArray<SearchLocation> results =
+        findAll(document, searchText, options);
 
     if (results.empty())
-        return {0, 0};
+        return SearchLocation();
 
     return results[0];
 }

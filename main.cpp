@@ -1,17 +1,20 @@
 #include <iostream>
 #include <string>
-#include <limits>
 #include <sstream>
 #include <vector>
 #include <fstream>
 #include <cstdlib>
 #include <algorithm>
 #include <filesystem>
+#include <system_error>
 
-#include "include/Document.h"
-#include "include/Search.h"
-#include "include/Replace.h"
-#include "include/UndoManager.h"
+#include "Document.h"
+#include "Search.h"
+#include "Replace.h"
+#include "UndoManager.h"
+#include "FileManager.h"
+#include "DynamicArray.h"
+#include "TextUtils.h"
 
 using namespace std;
 namespace fs = std::filesystem;
@@ -44,23 +47,27 @@ const int SCREEN_WIDTH = 80; // set this to your terminal width
 const int MENU_WIDTH = 46;   // width of the menu box and underlines
 
 const vector<string> MENU_LABELS = {
-    "New Document",             // 1
-    "Open File",                // 2
-    "Save File",                // 3
-    "Save As",                  // 4
-    "Add a new line",           // 5
-    "Display document",         // 6
-    "Search for a word",        // 7
-    "Replace first occurrence", // 8
-    "Replace all occurrences",  // 9
-    "Insert text into a line",  // 10
-    "Delete text from a line",  // 11
-    "Undo last operation",      // 12
-    "Document statistics",      // 13
-    "Exit"                      // 14
+    "New Document",              // 1
+    "Open File",                 // 2
+    "Save File",                 // 3
+    "Save As",                   // 4
+    "Display document",          // 5
+    "Insert a new line",         // 6
+    "Insert text into a line",   // 7
+    "Delete text / word(s)",     // 8
+    "Delete line(s)",            // 9
+    "Search text",               // 10
+    "Replace one occurrence",    // 11
+    "Replace all occurrences",   // 12
+    "Undo last operation",       // 13
+    "Exit"                       // 14
 };
 
-const int FILE_COUNT = 4;
+const int FILE_COUNT = 5;
+const int INSERT_COUNT = 2;
+const int DELETE_COUNT = 2;
+const int SEARCH_COUNT = 1;
+const int REPLACE_COUNT = 2;
 const int EXIT_CHOICE = 14;
 
 // ---------------------------------------------------------------
@@ -270,11 +277,30 @@ void displayMenu()
         printItem(i + 1, MENU_LABELS[i]);
     }
 
-    printSection("Editing");
-    for (int i = FILE_COUNT; i < EXIT_CHOICE - 1; i++)
+    printSection("Insertion");
+    for (int i = FILE_COUNT; i < FILE_COUNT + INSERT_COUNT; i++)
     {
         printItem(i + 1, MENU_LABELS[i]);
     }
+
+    printSection("Deletion");
+    for (int i = FILE_COUNT + INSERT_COUNT;
+         i < FILE_COUNT + INSERT_COUNT + DELETE_COUNT; i++)
+    {
+        printItem(i + 1, MENU_LABELS[i]);
+    }
+
+    printSection("Search");
+    printItem(10, MENU_LABELS[9]);
+
+    printSection("Replace");
+    for (int i = 10; i < 10 + REPLACE_COUNT; i++)
+    {
+        printItem(i + 1, MENU_LABELS[i]);
+    }
+
+    printSection("Undo");
+    printItem(13, MENU_LABELS[12]);
 
     printSection("Session");
     printItem(EXIT_CHOICE, MENU_LABELS[EXIT_CHOICE - 1], Color::RED);
@@ -291,7 +317,10 @@ void displayStatusBar(Document &doc, UndoManager &undo,
     if (modified)
         name += "*";
 
-    string left = " " + name + " | Lines: " + to_string(doc.getLineCount()) + " | Chars: " + to_string(doc.countCharacters()) + " | Undo: " + to_string(undo.historySize());
+    string left = " " + name + " | Lines: " + to_string(doc.getLineCount()) +
+                  " | Words: " + to_string(doc.countWords()) +
+                  " | Chars: " + to_string(doc.countCharacters()) +
+                  " | Undo: " + to_string(undo.historySize());
 
     string right = modified ? "Modified " : "Saved ";
 
@@ -306,29 +335,22 @@ void displayStatusBar(Document &doc, UndoManager &undo,
 // ---------------------------------------------------------------
 void displayDocument(const Document &doc)
 {
-    cout << Color::CYAN << Color::BOLD;
-    cout << "\n-------------- DOCUMENT -------------------\n";
-    cout << Color::RESET;
+    printCentered("------------------- DOCUMENT -------------------",
+                  Color::CYAN + Color::BOLD);
 
     if (doc.getLineCount() == 0)
     {
-        cout << Color::YELLOW
-             << "The document is empty.\n"
-             << Color::RESET;
-        return;
+        printCentered("The document is empty.", Color::YELLOW);
     }
-
-    for (int i = 0; i < doc.getLineCount(); i++)
+    else
     {
-        cout << Color::YELLOW << i + 1 << ". "
-             << Color::RESET;
-
-        cout << doc.getLine(i) << '\n';
+        for (int i = 0; i < doc.getLineCount(); i++)
+        {
+            printCentered(to_string(i + 1) + ". " + doc.getLine(i));
+        }
     }
 
-    cout << Color::CYAN
-         << "--------------------------------------------\n"
-         << Color::RESET;
+    printCentered("--------------------------------------------", Color::CYAN);
 }
 
 vector<string> captureDocument(const Document &doc)
@@ -347,31 +369,25 @@ void displaySnapshot(const vector<string> &lines)
 {
     if (lines.empty())
     {
-        cout << Color::YELLOW << "Document is empty.\n"
-             << Color::RESET;
+        printCentered("Document is empty.", Color::YELLOW);
         return;
     }
 
     for (size_t i = 0; i < lines.size(); i++)
     {
-        cout << Color::YELLOW << i + 1 << ". "
-             << Color::RESET << lines[i] << '\n';
+        printCentered(to_string(i + 1) + ". " + lines[i]);
     }
 }
 
 void showBeforeAfter(const vector<string> &before, const Document &doc)
 {
-    cout << Color::CYAN << Color::BOLD;
-    cout << "\n========== BEFORE ==========\n";
-    cout << Color::RESET;
-
+    cout << "\n";
+    printCentered("<<<<<<<<< BEFORE >>>>>>>>>", Color::CYAN + Color::BOLD);
     displaySnapshot(before);
 
-    cout << Color::GREEN << Color::BOLD;
-    cout << "\n========== AFTER ===========\n";
-    cout << Color::RESET;
-
-    displayDocument(doc);
+    cout << "\n";
+    printCentered("<<<<<<<<< AFTER >>>>>>>>>", Color::GREEN + Color::BOLD);
+    displaySnapshot(captureDocument(doc));
 }
 
 void displayChoice(int choice)
@@ -518,219 +534,137 @@ bool askYesNo(const string &question)
     }
 }
 
-// Write every line of the document into a file
-bool writeDocument(const Document &doc, const string &filename)
-{
-    ofstream file(filename);
-
-    if (!file.is_open())
-    {
-        cout << Color::RED << "Error: Could not save file!\n"
-             << Color::RESET;
-        return false;
-    }
-
-    for (int i = 0; i < doc.getLineCount(); i++)
-    {
-        file << doc.getLine(i) << '\n';
-    }
-
-    file.flush();
-
-    if (!file)
-    {
-        cout << Color::RED << "Error: Problem writing to file!\n"
-             << Color::RESET;
-        return false;
-    }
-
-    return true;
-}
-
 // ---------------------------------------------------------------
-// File operations
+// Interactive file operations. FileManager performs the actual I/O;
+// these functions handle prompts and messages for the terminal UI.
 // ---------------------------------------------------------------
 
-// 1. NEW DOCUMENT: ask for a name, create the file, start editing it
-bool newDocument(Document &doc, UndoManager &undo, string &currentFile)
+bool newDocument(Document &doc, UndoManager &undo, FileManager &files)
 {
-    vector<string> files = listTextFiles();
-    printFileList(files);
-
+    vector<string> availableFiles = listTextFiles();
+    printFileList(availableFiles);
     cout << '\n';
+
     string name = askFileName(
         "Name your new document (e.g. notes.txt), Enter to cancel: ", {});
-
     if (name.empty())
     {
-        cout << Color::YELLOW << "New document cancelled.\n"
-             << Color::RESET;
+        cout << Color::YELLOW << "New document cancelled.\n" << Color::RESET;
         return false;
     }
 
     if (fileExists(name))
     {
-        cout << Color::RED << "'" << name << "' already exists.\n"
-             << Color::RESET;
-
-        if (!askYesNo("Replace it with an empty document?"))
+        cout << Color::RED << "'" << name << "' already exists.\n" << Color::RESET;
+        if (!askYesNo("Start an empty document with this name (the old file is kept until you save)?"))
         {
-            cout << Color::YELLOW << "New document cancelled.\n"
-                 << Color::RESET;
+            cout << Color::YELLOW << "New document cancelled.\n" << Color::RESET;
             return false;
         }
     }
 
-    // Create the empty file on disk
-    ofstream file(name);
-
-    if (!file.is_open())
-    {
-        cout << Color::RED << "Error: Could not create the file!\n"
-             << Color::RESET;
-        return false;
-    }
-
-    file.close();
-
-    doc.clear();
+    files.newDocument(doc, name);
     undo.clear();
-    currentFile = name;
-
-    cout << Color::GREEN << "\nDocument '" << name
-         << "' created successfully!\n"
-         << "You are now editing it. Choose 'Save File' to save your work.\n"
+    cout << Color::GREEN << "\nNew document '" << name
+         << "' started.\n"
+         << "It is written to disk only when you choose 'Save File'.\n"
          << Color::RESET;
-
     return true;
 }
 
-// 2. OPEN FILE: show the files, load the chosen one, start editing it
-bool openFile(Document &doc, UndoManager &undo, string &currentFile)
+bool openFile(Document &doc, UndoManager &undo, FileManager &files)
 {
-    vector<string> files = listTextFiles();
-    printFileList(files);
-
+    vector<string> availableFiles = listTextFiles();
+    printFileList(availableFiles);
     cout << '\n';
-    string filename = askFileName(
-        "Type a file name or number to open, Enter to cancel: ", files);
 
+    string filename = askFileName(
+        "Type a file name or number to open, Enter to cancel: ", availableFiles);
     if (filename.empty())
     {
-        cout << Color::YELLOW << "Open cancelled.\n"
-             << Color::RESET;
+        cout << Color::YELLOW << "Open cancelled.\n" << Color::RESET;
         return false;
     }
 
-    ifstream file(filename);
-
-    if (!file.is_open())
+    error_code ec;
+    if (!fs::is_regular_file(filename, ec))
     {
-        cout << Color::RED << "Error: Could not open '" << filename
-             << "'!\n"
-             << Color::RESET;
+        cout << Color::RED << "Error: '" << filename
+             << "' does not exist or is not a regular file!\n" << Color::RESET;
         return false;
     }
 
-    vector<string> lines;
-    string line;
-
-    while (getline(file, line))
+    if (!files.openFile(filename, doc))
     {
-        lines.push_back(line);
-    }
-
-    if (file.bad())
-    {
-        cout << Color::RED << "Error: Problem reading the file!\n"
-             << Color::RESET;
+        cout << Color::RED << "Error: Could not read '" << filename
+             << "'. The current document was not changed.\n" << Color::RESET;
         return false;
     }
 
-    doc.clear();
     undo.clear();
-
-    for (const string &text : lines)
-    {
-        doc.appendLine(text);
-    }
-
-    currentFile = filename;
-
     cout << Color::GREEN << "\nFile opened successfully!\n"
-         << "Now editing: " << currentFile << '\n'
-         << "Your changes will be saved into this file when you choose "
-            "'Save File'.\n"
+         << "Now editing: " << files.getFileName() << '\n'
+         << "Your changes will be saved into this file when you choose 'Save File'.\n"
          << Color::RESET;
-
     return true;
 }
 
-// 4. SAVE AS: show the files, pick one (or type a new name), save into it
-bool saveAs(Document &doc, string &currentFile)
+bool saveAs(Document &doc, FileManager &files)
 {
-    vector<string> files = listTextFiles();
-    printFileList(files);
-
+    vector<string> availableFiles = listTextFiles();
+    printFileList(availableFiles);
     cout << '\n';
+
     string filename = askFileName(
         "Type a new name, or a number to overwrite a file, Enter to cancel: ",
-        files);
-
+        availableFiles);
     if (filename.empty())
     {
-        cout << Color::YELLOW << "Save As cancelled.\n"
-             << Color::RESET;
+        cout << Color::YELLOW << "Save As cancelled.\n" << Color::RESET;
         return false;
     }
 
-    // Warn before overwriting a different existing file
-    if (filename != currentFile && fileExists(filename))
+    if (filename != files.getFileName() && fileExists(filename))
     {
-        cout << Color::RED << "'" << filename << "' already exists.\n"
-             << Color::RESET;
-
+        cout << Color::RED << "'" << filename << "' already exists.\n" << Color::RESET;
         if (!askYesNo("Overwrite it?"))
         {
-            cout << Color::YELLOW << "Save As cancelled.\n"
-                 << Color::RESET;
+            cout << Color::YELLOW << "Save As cancelled.\n" << Color::RESET;
             return false;
         }
     }
 
-    if (!writeDocument(doc, filename))
+    if (!files.saveAs(filename, doc))
     {
+        cout << Color::RED << "Error: Could not save to '" << filename << "'.\n"
+             << Color::RESET;
         return false;
     }
 
-    currentFile = filename;
-
     cout << Color::GREEN << "File saved successfully as "
-         << currentFile << "!\n"
-         << Color::RESET;
-
+         << files.getFileName() << "!\n" << Color::RESET;
     return true;
 }
 
-// 3. SAVE FILE: save into the file we are already editing
-bool saveFile(Document &doc, string &currentFile)
+bool saveFile(Document &doc, FileManager &files)
 {
-    if (currentFile.empty())
+    if (!files.hasFileName())
     {
         cout << Color::YELLOW
              << "This document has no file name yet, so choose one:\n"
              << Color::RESET;
-        return saveAs(doc, currentFile);
+        return saveAs(doc, files);
     }
 
-    if (!writeDocument(doc, currentFile))
+    if (!files.save(doc))
     {
+        cout << Color::RED << "Error: Could not save '" << files.getFileName()
+             << "'.\n" << Color::RESET;
         return false;
     }
 
-    cout << Color::GREEN << "Saved to " << currentFile << "!\n"
+    cout << Color::GREEN << "Saved to " << files.getFileName() << "!\n"
          << Color::RESET;
-
     return true;
 }
 
@@ -769,26 +703,75 @@ bool confirmUnsavedChanges(bool modified)
     }
 }
 
-// Find the word as a whole word (not inside another word).
-// Returns the position, or string::npos if there is none.
-size_t findWholeWord(const string &text, const string &word, size_t start)
+// ---------------------------------------------------------------
+// Small input helpers
+// ---------------------------------------------------------------
+string readText(const string &prompt)
 {
-    size_t p = start;
+    string text;
 
-    while ((p = text.find(word, p)) != string::npos)
+    cout << prompt;
+
+    if (!getline(cin, text))
     {
-        size_t e = p + word.size();
-
-        bool startOk = (p == 0 || !isalnum((unsigned char)text[p - 1]));
-        bool endOk = (e >= text.size() || !isalnum((unsigned char)text[e]));
-
-        if (startOk && endOk)
-            return p;
-
-        p++;
+        cout << "\nInput stream closed. Exiting Text Editor.\n";
+        exit(0);
     }
 
-    return string::npos;
+    return text;
+}
+
+void printError(const string &message)
+{
+    cout << Color::RED << message << '\n' << Color::RESET;
+}
+
+// Every command that needs text in the document calls this first
+bool requireNonEmpty(const Document &doc)
+{
+    if (doc.getLineCount() == 0)
+    {
+        printError("The document is empty. Add a line first.");
+        return false;
+    }
+    return true;
+}
+
+MatchOptions askMatchOptions()
+{
+    MatchOptions options;
+    options.wholeWord = askYesNo("Match whole words only");
+    options.caseSensitive = askYesNo("Case sensitive");
+    return options;
+}
+
+void printMatchList(const Document &doc,
+                    const DynamicArray<SearchLocation> &matches)
+{
+    for (size_t k = 0; k < matches.size(); k++)
+    {
+        cout << "  " << Color::GREEN << k + 1 << "." << Color::RESET
+             << " Line " << matches[k].line
+             << ", column " << matches[k].column
+             << "  ->  " << doc.getLine((int)matches[k].line - 1) << '\n';
+    }
+}
+
+// Ask which of `total` matches the user means. Returns 0 if invalid.
+int askWhichMatch(size_t total, const string &verb)
+{
+    if (total == 1)
+        return 1;
+
+    int pick = readInt("Which one do you want to " + verb + "? (1-" +
+                       to_string(total) + "): ");
+
+    if (pick < 1 || pick > (int)total)
+    {
+        printError("Invalid choice!");
+        return 0;
+    }
+    return pick;
 }
 
 // Delete one word at a position (plus one neighbouring space)
@@ -822,6 +805,385 @@ bool deleteWordAt(Document &doc, UndoManager &undo,
 }
 
 // ---------------------------------------------------------------
+// Editing commands (one function per menu item)
+// ---------------------------------------------------------------
+
+// 5. INSERT A NEW LINE at any position (or at the end)
+void cmdInsertLine(Document &doc, UndoManager &undo, FileManager &files)
+{
+    int n = doc.getLineCount();
+
+    int pos = readInt("Insert at line number (1-" + to_string(n + 1) +
+                      ", " + to_string(n + 1) + " = end of document): ");
+
+    if (pos < 1 || pos > n + 1)
+    {
+        printError("Invalid line number!");
+        return;
+    }
+
+    string text = readText("Enter your text (blank = empty line): ");
+
+    vector<string> before = captureDocument(doc);
+
+    if (doc.insertLine(pos - 1, text))
+    {
+        undo.recordLineInsert(pos - 1, text);
+        files.markModified();
+
+        cout << Color::GREEN << "Line inserted successfully!\n"
+             << Color::RESET;
+        showBeforeAfter(before, doc);
+    }
+    else
+    {
+        printError("Could not insert line.");
+    }
+}
+
+// 7. SEARCH
+void cmdSearch(const Document &doc)
+{
+    if (!requireNonEmpty(doc))
+        return;
+
+    string word = readText("Enter text to search: ");
+
+    if (word.empty())
+    {
+        printError("Search text cannot be empty.");
+        return;
+    }
+
+    MatchOptions options = askMatchOptions();
+    DynamicArray<SearchLocation> results = Search::findAll(doc, word, options);
+
+    if (results.empty())
+    {
+        printError("'" + word + "' was not found in the document.");
+        return;
+    }
+
+    cout << Color::GREEN << "\nFound " << results.size()
+         << " occurrence(s):\n" << Color::RESET;
+    printMatchList(doc, results);
+}
+
+// 8. REPLACE ONE (user chooses which occurrence)
+void cmdReplaceOne(Document &doc, UndoManager &undo, FileManager &files)
+{
+    if (!requireNonEmpty(doc))
+        return;
+
+    string oldWord = readText("Enter text to replace: ");
+
+    if (oldWord.empty())
+    {
+        printError("The text to replace cannot be empty.");
+        return;
+    }
+
+    string newWord = readText("Enter replacement (blank = delete it): ");
+    MatchOptions options = askMatchOptions();
+
+    DynamicArray<SearchLocation> matches = Search::findAll(doc, oldWord, options);
+
+    if (matches.empty())
+    {
+        printError("'" + oldWord + "' was not found in the document.");
+        return;
+    }
+
+    cout << Color::CYAN << Color::BOLD << "\nFound " << matches.size()
+         << " occurrence(s):\n" << Color::RESET;
+    printMatchList(doc, matches);
+
+    int pick = askWhichMatch(matches.size(), "replace");
+    if (pick == 0)
+        return;
+
+    vector<string> before = captureDocument(doc);
+
+    if (Replace::replaceNth(doc, oldWord, newWord, (size_t)pick, &undo, options))
+    {
+        files.markModified();
+        cout << Color::GREEN << "Occurrence replaced successfully!\n"
+             << Color::RESET;
+        showBeforeAfter(before, doc);
+    }
+    else
+    {
+        printError("Nothing changed (the text is already the replacement).");
+    }
+}
+
+// 9. REPLACE ALL
+void cmdReplaceAll(Document &doc, UndoManager &undo, FileManager &files)
+{
+    if (!requireNonEmpty(doc))
+        return;
+
+    string oldWord = readText("Enter text to replace: ");
+
+    if (oldWord.empty())
+    {
+        printError("The text to replace cannot be empty.");
+        return;
+    }
+
+    string newWord = readText("Enter replacement (blank = delete it): ");
+    MatchOptions options = askMatchOptions();
+
+    vector<string> before = captureDocument(doc);
+    size_t count = Replace::replaceAll(doc, oldWord, newWord, &undo, options);
+
+    if (count > 0)
+    {
+        files.markModified();
+        cout << Color::GREEN << "\n" << count
+             << " replacement(s) made! (one Undo reverses all of them)\n"
+             << Color::RESET;
+        showBeforeAfter(before, doc);
+    }
+    else
+    {
+        printError("No replacements made ('" + oldWord + "' not found).");
+    }
+}
+
+// 10. INSERT TEXT inside a line
+void cmdInsertText(Document &doc, UndoManager &undo, FileManager &files)
+{
+    if (!requireNonEmpty(doc))
+        return;
+
+    int line = readInt("Enter line number: ");
+    int column = readInt("Enter column number: ");
+    string text = readText("Enter text to insert: ");
+
+    if (text.empty())
+    {
+        printError("Nothing to insert.");
+        return;
+    }
+
+    vector<string> before = captureDocument(doc);
+
+    // Convert 1-based user positions to 0-based indices
+    if (doc.insertText(line - 1, column - 1, text))
+    {
+        undo.recordInsert(line - 1, column - 1, text);
+        files.markModified();
+
+        showBeforeAfter(before, doc);
+        cout << Color::GREEN << "Text inserted successfully!\n"
+             << Color::RESET;
+    }
+    else
+    {
+        printError("Could not insert text. Check the line and column "
+                   "(column may be 1 to line length + 1).");
+    }
+}
+
+// 11a. DELETE a character or a range of characters in one line
+void deleteCharacters(Document &doc, UndoManager &undo, FileManager &files)
+{
+    int line = readInt("Enter line number: ");
+    int column = readInt("Enter starting column: ");
+    int length = readInt("How many characters to delete (1 = a single character): ");
+
+    if (length <= 0)
+    {
+        printError("The number of characters must be at least 1.");
+        return;
+    }
+
+    string removed = doc.getText(line - 1, column - 1, length);
+
+    if (removed.empty())
+    {
+        printError("Invalid range. The characters must exist on that line.");
+        return;
+    }
+
+    vector<string> before = captureDocument(doc);
+
+    if (doc.deleteText(line - 1, column - 1, length))
+    {
+        undo.recordDelete(line - 1, column - 1, removed);
+        files.markModified();
+
+        showBeforeAfter(before, doc);
+        cout << Color::GREEN << length << " character(s) deleted!\n"
+             << Color::RESET;
+    }
+    else
+    {
+        printError("Could not delete the text.");
+    }
+}
+
+// 11b / 11c. DELETE one chosen occurrence of a word, or every occurrence
+void deleteWord(Document &doc, UndoManager &undo, FileManager &files, bool all)
+{
+    string word = readText("Enter the word to delete: ");
+
+    if (word.empty())
+    {
+        printError("No word entered.");
+        return;
+    }
+
+    MatchOptions options;
+    options.wholeWord = true;
+    options.caseSensitive = askYesNo("Case sensitive");
+
+    DynamicArray<SearchLocation> matches = Search::findAll(doc, word, options);
+
+    if (matches.empty())
+    {
+        printError("That word is not in the document.");
+        return;
+    }
+
+    vector<string> before = captureDocument(doc);
+    int deleted = 0;
+
+    if (!all)
+    {
+        cout << Color::CYAN << Color::BOLD << "\nFound " << matches.size()
+             << " occurrence(s):\n" << Color::RESET;
+        printMatchList(doc, matches);
+
+        int pick = askWhichMatch(matches.size(), "delete");
+        if (pick == 0)
+            return;
+
+        const SearchLocation &m = matches[pick - 1];
+
+        if (deleteWordAt(doc, undo, (int)m.line - 1,
+                         m.column - 1, word.size()))
+            deleted = 1;
+    }
+    else
+    {
+        // Right-to-left so earlier positions stay valid;
+        // grouped so ONE undo restores every deleted occurrence.
+        undo.beginGroup();
+
+        for (size_t k = matches.size(); k > 0; k--)
+        {
+            const SearchLocation &m = matches[k - 1];
+
+            if (deleteWordAt(doc, undo, (int)m.line - 1,
+                             m.column - 1, word.size()))
+                deleted++;
+        }
+
+        undo.endGroup();
+    }
+
+    if (deleted > 0)
+    {
+        files.markModified();
+        showBeforeAfter(before, doc);
+        cout << Color::GREEN << deleted << " occurrence(s) deleted!\n"
+             << Color::RESET;
+    }
+    else
+    {
+        printError("Nothing was deleted.");
+    }
+}
+
+// 11. DELETE TEXT (sub-menu)
+void cmdDeleteText(Document &doc, UndoManager &undo, FileManager &files)
+{
+    if (!requireNonEmpty(doc))
+        return;
+
+    cout << "  1. Delete a character / range of characters in a line\n";
+    cout << "  2. Delete a word (choose which occurrence)\n";
+    cout << "  3. Delete ALL occurrences of a word\n";
+    int mode = readInt("Choose delete mode: ");
+
+    switch (mode)
+    {
+    case 1: deleteCharacters(doc, undo, files); break;
+    case 2: deleteWord(doc, undo, files, false); break;
+    case 3: deleteWord(doc, undo, files, true); break;
+    default: printError("Invalid mode!");
+    }
+}
+
+// 12. DELETE a line or a range of lines
+void cmdDeleteLines(Document &doc, UndoManager &undo, FileManager &files)
+{
+    if (!requireNonEmpty(doc))
+        return;
+
+    int n = doc.getLineCount();
+
+    int from = readInt("First line to delete: ");
+    int to = readInt("Last line to delete (same number = one line): ");
+
+    if (from < 1 || to < from || to > n)
+    {
+        printError("Invalid range. Lines must be between 1 and " +
+                   to_string(n) + ", and the first cannot be after the last.");
+        return;
+    }
+
+    vector<string> before = captureDocument(doc);
+    int deleted = 0;
+
+    // Bottom-up so the line numbers above stay valid; grouped so one
+    // Undo brings the whole range back.
+    undo.beginGroup();
+
+    for (int i = to - 1; i >= from - 1; i--)
+    {
+        string text = doc.getLine(i);
+
+        if (doc.deleteLine(i))
+        {
+            undo.recordLineDelete(i, text);
+            deleted++;
+        }
+    }
+
+    undo.endGroup();
+
+    files.markModified();
+    showBeforeAfter(before, doc);
+    cout << Color::GREEN << deleted << " line(s) deleted!\n" << Color::RESET;
+}
+
+// 13. UNDO
+void cmdUndo(Document &doc, UndoManager &undo, FileManager &files)
+{
+    if (!undo.canUndo())
+    {
+        cout << Color::YELLOW << "Nothing to undo.\n" << Color::RESET;
+        return;
+    }
+
+    vector<string> before = captureDocument(doc);
+
+    if (undo.undo(doc))
+    {
+        files.markModified();
+        cout << Color::GREEN << undo.lastMessage() << '\n' << Color::RESET;
+        showBeforeAfter(before, doc);
+    }
+    else
+    {
+        printError("Undo failed: " + undo.lastMessage());
+    }
+}
+
+// ---------------------------------------------------------------
 // main
 // ---------------------------------------------------------------
 int main()
@@ -833,469 +1195,61 @@ int main()
     Document doc;
     UndoManager undo;
 
-    string currentFile = "";
-    bool modified = false;
+    FileManager files;
     int choice;
 
     do
     {
-        displayHeader(currentFile, modified);
+        displayHeader(files.getFileName(), files.isModified());
         displayMenu();
-        displayStatusBar(doc, undo, currentFile, modified);
+        displayStatusBar(doc, undo, files.getFileName(), files.isModified());
 
         choice = readInt("Enter your choice: ", true);
         displayChoice(choice);
 
+        cout << "\n";
+
         switch (choice)
         {
         // ===================== FILE =====================
-
-        // 1. NEW DOCUMENT
         case 1:
-        {
-            if (confirmUnsavedChanges(modified))
-            {
-                if (newDocument(doc, undo, currentFile))
-                {
-                    modified = false;
-                }
-            }
+            if (confirmUnsavedChanges(files.isModified()))
+                newDocument(doc, undo, files);
             break;
-        }
 
-        // 2. OPEN FILE
         case 2:
-        {
-            if (confirmUnsavedChanges(modified))
-            {
-                if (openFile(doc, undo, currentFile))
-                {
-                    modified = false;
-                }
-            }
+            if (confirmUnsavedChanges(files.isModified()))
+                openFile(doc, undo, files);
             break;
-        }
 
-        // 3. SAVE FILE
         case 3:
-        {
-            if (saveFile(doc, currentFile))
-            {
-                modified = false;
-            }
+            saveFile(doc, files);
             break;
-        }
 
-        // 4. SAVE AS
         case 4:
-        {
-            if (saveAs(doc, currentFile))
-            {
-                modified = false;
-            }
+            saveAs(doc, files);
             break;
-        }
 
-        // ===================== EDIT =====================
-
-        // 5. ADD LINE
-        case 5:
-        {
-            string text;
-
-            cout << "Enter your text: ";
-            getline(cin, text);
-
-            vector<string> before = captureDocument(doc);
-            int index = doc.getLineCount();
-
-            if (doc.appendLine(text))
-            {
-                undo.recordLineInsert(index, text);
-                modified = true;
-
-                cout << Color::GREEN
-                     << "Line added successfully!\n"
-                     << Color::RESET;
-
-                showBeforeAfter(before, doc);
-            }
-            else
-            {
-                cout << Color::RED
-                     << "Could not add line.\n"
-                     << Color::RESET;
-            }
-
-            break;
-        }
-
-        // 6. DISPLAY DOCUMENT
-        case 6:
-        {
-            displayDocument(doc);
-            break;
-        }
-
-        // 7. SEARCH
-        case 7:
-        {
-            string word;
-
-            cout << "Enter word to search: ";
-            getline(cin, word);
-
-            auto results = Search::findAll(doc, word);
-
-            if (results.empty())
-            {
-                cout << Color::RED
-                     << "Word not found!\n"
-                     << Color::RESET;
-            }
-            else
-            {
-                cout << Color::GREEN
-                     << "\nFound " << results.size()
-                     << " occurrence(s):\n"
-                     << Color::RESET;
-
-                for (const auto &result : results)
-                {
-                    cout << "Line: " << result.line
-                         << " | Column: " << result.column
-                         << '\n';
-                }
-            }
-
-            break;
-        }
-
-        // 8. REPLACE FIRST
-        case 8:
-        {
-            string oldWord, newWord;
-
-            cout << "Enter word to replace: ";
-            getline(cin, oldWord);
-
-            cout << "Enter replacement: ";
-            getline(cin, newWord);
-
-            vector<string> before = captureDocument(doc);
-
-            if (Replace::replaceFirst(doc, oldWord, newWord, &undo))
-            {
-                modified = true;
-
-                cout << Color::GREEN
-                     << "First occurrence replaced successfully!\n"
-                     << Color::RESET;
-
-                showBeforeAfter(before, doc);
-            }
-            else
-            {
-                cout << Color::RED
-                     << "Word not found or replacement failed.\n"
-                     << Color::RESET;
-            }
-
-            break;
-        }
-
-        // 9. REPLACE ALL
-        case 9:
-        {
-            string oldWord, newWord;
-
-            cout << "Enter word to replace: ";
-            getline(cin, oldWord);
-
-            cout << "Enter replacement: ";
-            getline(cin, newWord);
-
-            vector<string> before = captureDocument(doc);
-
-            size_t count = Replace::replaceAll(doc, oldWord, newWord, &undo);
-
-            if (count > 0)
-            {
-                modified = true;
-
-                cout << Color::GREEN
-                     << "\n"
-                     << count << " replacement(s) made!\n"
-                     << Color::RESET;
-
-                showBeforeAfter(before, doc);
-            }
-            else
-            {
-                cout << Color::RED
-                     << "No replacements made.\n"
-                     << Color::RESET;
-            }
-
-            break;
-        }
-
-        // 10. INSERT TEXT
-        case 10:
-        {
-            vector<string> before = captureDocument(doc);
-
-            if (doc.getLineCount() == 0)
-            {
-                cout << Color::RED
-                     << "Document is empty. Add a line first.\n"
-                     << Color::RESET;
-                break;
-            }
-
-            int line = readInt("Enter line number: ");
-            int column = readInt("Enter column number: ");
-
-            string text;
-
-            cout << "Enter text to insert: ";
-            getline(cin, text);
-
-            // Convert 1-based user positions to 0-based indices
-            line--;
-            column--;
-
-            if (line < 0 || column < 0)
-            {
-                cout << Color::RED
-                     << "Invalid position!\n"
-                     << Color::RESET;
-                break;
-            }
-
-            if (doc.insertText(line, column, text))
-            {
-                modified = true;
-                undo.recordInsert(line, column, text);
-                showBeforeAfter(before, doc);
-
-                cout << Color::GREEN
-                     << "Text inserted successfully!\n"
-                     << Color::RESET;
-            }
-            else
-            {
-                cout << Color::RED
-                     << "Could not insert text. Check the position.\n"
-                     << Color::RESET;
-            }
-
-            break;
-        }
-
-        // 11. DELETE A WORD
-        case 11:
-        {
-            vector<string> before = captureDocument(doc);
-
-            if (doc.getLineCount() == 0)
-            {
-                cout << Color::RED << "Document is empty.\n"
-                     << Color::RESET;
-                break;
-            }
-
-            cout << "  1. Choose which occurrence to delete\n";
-            cout << "  2. Delete all occurrences\n";
-            int mode = readInt("Choose delete mode: ");
-
-            if (mode != 1 && mode != 2)
-            {
-                cout << Color::RED << "Invalid mode!\n" << Color::RESET;
-                break;
-            }
-
-            string word;
-            cout << "Enter the word to delete: ";
-            getline(cin, word);
-
-            if (word.empty())
-            {
-                cout << Color::RED << "No word entered.\n"
-                     << Color::RESET;
-                break;
-            }
-
-            int deleted = 0;
-
-            if (mode == 1)
-            {
-                // Collect every match first
-                vector<int> matchLine;
-                vector<size_t> matchPos;
-
-                for (int i = 0; i < doc.getLineCount(); i++)
-                {
-                    string text = doc.getLine(i);
-                    size_t p = 0;
-
-                    while ((p = findWholeWord(text, word, p)) != string::npos)
-                    {
-                        matchLine.push_back(i);
-                        matchPos.push_back(p);
-                        p += word.size();
-                    }
-                }
-
-                if (matchLine.empty())
-                {
-                    cout << Color::RED << "That word is not in the document.\n"
-                         << Color::RESET;
-                    break;
-                }
-
-                cout << Color::CYAN << Color::BOLD
-                     << "\nFound " << matchLine.size()
-                     << " occurrence(s):\n" << Color::RESET;
-
-                for (size_t k = 0; k < matchLine.size(); k++)
-                {
-                    cout << "  " << Color::GREEN << k + 1 << "."
-                         << Color::RESET
-                         << " Line " << matchLine[k] + 1
-                         << ", column " << matchPos[k] + 1
-                         << "  ->  " << doc.getLine(matchLine[k]) << '\n';
-                }
-
-                int pick = readInt("Which one do you want to delete? ");
-
-                if (pick < 1 || pick > (int)matchLine.size())
-                {
-                    cout << Color::RED << "Invalid choice!\n"
-                         << Color::RESET;
-                    break;
-                }
-
-                if (deleteWordAt(doc, undo, matchLine[pick - 1],
-                                 matchPos[pick - 1], word.size()))
-                {
-                    deleted = 1;
-                }
-            }
-            else
-            {
-                // All occurrences, bottom-up and right-to-left,
-                // grouped so one Undo restores everything
-                undo.beginGroup();
-
-                for (int i = doc.getLineCount() - 1; i >= 0; i--)
-                {
-                    vector<size_t> matches;
-                    string text = doc.getLine(i);
-                    size_t p = 0;
-
-                    while ((p = findWholeWord(text, word, p)) != string::npos)
-                    {
-                        matches.push_back(p);
-                        p += word.size();
-                    }
-
-                    for (int k = (int)matches.size() - 1; k >= 0; k--)
-                    {
-                        if (deleteWordAt(doc, undo, i, matches[k], word.size()))
-                            deleted++;
-                    }
-                }
-
-                undo.endGroup();
-            }
-
-            if (deleted > 0)
-            {
-                modified = true;
-                showBeforeAfter(before, doc);
-
-                cout << Color::GREEN << deleted << " occurrence(s) deleted!\n"
-                     << Color::RESET;
-            }
-            else
-            {
-                cout << Color::RED << "That word is not in the document.\n"
-                     << Color::RESET;
-            }
-
-            break;
-        }
-
-        // 12. UNDO
-        case 12:
-        {
-            if (undo.canUndo())
-            {
-                vector<string> before = captureDocument(doc);
-
-                if (undo.undo(doc))
-                {
-                    modified = true;
-
-                    cout << Color::GREEN
-                         << "Last operation undone successfully!\n"
-                         << Color::RESET;
-
-                    showBeforeAfter(before, doc);
-                }
-                else
-                {
-                    cout << Color::RED
-                         << "Undo failed: "
-                         << undo.lastMessage() << '\n'
-                         << Color::RESET;
-                }
-            }
-            else
-            {
-                cout << Color::YELLOW
-                     << "Nothing to undo.\n"
-                     << Color::RESET;
-            }
-
-            break;
-        }
-
-        // 13. STATISTICS
-        case 13:
-        {
-            cout << Color::CYAN << Color::BOLD;
-            cout << "\n---------- DOCUMENT STATISTICS ------------\n";
-            cout << Color::RESET;
-
-            cout << "Current file: "
-                 << (currentFile.empty() ? "Untitled (not saved yet)"
-                                         : currentFile)
-                 << '\n';
-
-            cout << "Total lines: "
-                 << doc.getLineCount() << '\n';
-
-            cout << "Total characters: "
-                 << doc.countCharacters() << '\n';
-
-            cout << "Undo history: "
-                 << undo.historySize() << " operation(s)\n";
-
-            cout << Color::CYAN
-                 << "--------------------------------------------\n"
-                 << Color::RESET;
-
-            break;
-        }
+        // ===================== FILE MANAGEMENT =====================
+        case 5:  displayDocument(doc);                break;
+
+        // ===================== TEXT EDITING =====================
+        case 6:  cmdInsertLine(doc, undo, files);     break;
+        case 7:  cmdInsertText(doc, undo, files);     break;
+        case 8:  cmdDeleteText(doc, undo, files);     break;
+        case 9:  cmdDeleteLines(doc, undo, files);    break;
+
+        // ===================== SEARCH & REPLACE =====================
+        case 10: cmdSearch(doc);                      break;
+        case 11: cmdReplaceOne(doc, undo, files);     break;
+        case 12: cmdReplaceAll(doc, undo, files);     break;
+
+        // ===================== UNDO =====================
+        case 13: cmdUndo(doc, undo, files);           break;
 
         // ===================== EXIT =====================
-
-        // 14. EXIT
         case 14:
-        {
-            if (confirmUnsavedChanges(modified))
+            if (confirmUnsavedChanges(files.isModified()))
             {
                 cout << Color::GREEN
                      << "\nThank you for using Text Editor!\n"
@@ -1306,14 +1260,9 @@ int main()
                 choice = 0; // user said "no", so stay in the loop
             }
             break;
-        }
 
         default:
-        {
-            cout << Color::RED
-                 << "Invalid choice! Select 1-14.\n"
-                 << Color::RESET;
-        }
+            printError("Invalid choice! Select 1-14.");
         }
 
     } while (choice != EXIT_CHOICE);

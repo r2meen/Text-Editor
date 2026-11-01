@@ -11,6 +11,7 @@ add_executable(text_editor
     src/Search.cpp
     src/Replace.cpp
     src/UndoManager.cpp
+    src/FileManager.cpp
 )
 
 target_include_directories(text_editor PRIVATE include)
