@@ -4,6 +4,7 @@
 #include <sstream>
 #include <vector>
 #include<fstream>
+#include<cstdlib>
 
 #include "include/Document.h"
 #include "include/Search.h"
@@ -34,7 +35,11 @@ int readInt(string prompt)
     while (true)
     {
         cout << Color::YELLOW << prompt << Color::RESET;
-        getline(cin, input);
+        if (!getline(cin, input))
+{
+    cout << "\nInput stream closed. Exiting Text Editor.\n";
+    exit(0);
+}
 
         stringstream ss(input);
 
@@ -262,12 +267,17 @@ void newDocument(Document& doc, UndoManager& undo, string& currentFile)
 }
 
 // Open an existing text file
-void openFile(Document& doc, UndoManager& undo, string& currentFile)
+bool openFile(Document& doc, UndoManager& undo, string& currentFile)
 {
     string filename;
 
     cout << "Enter file name to open (e.g. notes.txt): ";
-    getline(cin, filename);
+
+    if (!getline(cin, filename))
+    {
+        cout << "\nInput stream closed. Exiting Text Editor.\n";
+        exit(0);
+    }
 
     ifstream file(filename);
 
@@ -275,10 +285,9 @@ void openFile(Document& doc, UndoManager& undo, string& currentFile)
     {
         cout << Color::RED << "Error: Could not open file!\n"
              << Color::RESET;
-        return;
+        return false;
     }
 
-    // Read the file first, so a failed read doesn't erase the current document
     vector<string> lines;
     string line;
 
@@ -291,7 +300,7 @@ void openFile(Document& doc, UndoManager& undo, string& currentFile)
     {
         cout << Color::RED << "Error: Problem reading the file!\n"
              << Color::RESET;
-        return;
+        return false;
     }
 
     doc.clear();
@@ -306,21 +315,26 @@ void openFile(Document& doc, UndoManager& undo, string& currentFile)
 
     cout << Color::GREEN << "File opened successfully!\n"
          << Color::RESET;
-}
 
+    return true;
+}
 // Save the document with a new file name
-void saveAs(Document& doc, string& currentFile)
+bool saveAs(Document& doc, string& currentFile)
 {
     string filename;
 
     cout << "Enter file name (e.g. notes.txt): ";
-    getline(cin, filename);
+
+    if (!getline(cin, filename))
+    {
+        return false;
+    }
 
     if (filename.empty())
     {
         cout << Color::RED << "File name cannot be empty!\n"
              << Color::RESET;
-        return;
+        return false;
     }
 
     ofstream file(filename);
@@ -329,7 +343,7 @@ void saveAs(Document& doc, string& currentFile)
     {
         cout << Color::RED << "Error: Could not save file!\n"
              << Color::RESET;
-        return;
+        return false;
     }
 
     for (int i = 0; i < doc.getLineCount(); i++)
@@ -337,26 +351,63 @@ void saveAs(Document& doc, string& currentFile)
         file << doc.getLine(i) << '\n';
     }
 
+    file.flush();
+
     if (!file)
     {
         cout << Color::RED << "Error: Problem writing to file!\n"
              << Color::RESET;
-        return;
+        return false;
     }
 
     currentFile = filename;
 
     cout << Color::GREEN << "File saved successfully as "
          << currentFile << "!\n" << Color::RESET;
-}
 
+    return true;
+}
+// Confirm before discarding unsaved changes
+bool confirmUnsavedChanges(bool modified)
+{
+    if (!modified)
+    {
+        return true;
+    }
+
+    string answer;
+
+    while (true)
+    {
+        cout << Color::YELLOW
+             << "You have unsaved changes. Continue without saving? (y/n): "
+             << Color::RESET;
+
+        if (!getline(cin, answer))
+        {
+            return false;
+        }
+
+        if (answer == "y" || answer == "Y")
+        {
+            return true;
+        }
+        else if (answer == "n" || answer == "N")
+        {
+            return false;
+        }
+
+        cout << Color::RED
+             << "Invalid input! Please enter y or n.\n"
+             << Color::RESET;
+    }
+}
 // Save the document using its current file name
-void saveFile(Document& doc, string& currentFile)
+bool saveFile(Document& doc, string& currentFile)
 {
     if (currentFile.empty())
     {
-        saveAs(doc, currentFile);
-        return;
+        return saveAs(doc, currentFile);
     }
 
     ofstream file(currentFile);
@@ -365,7 +416,7 @@ void saveFile(Document& doc, string& currentFile)
     {
         cout << Color::RED << "Error: Could not save file!\n"
              << Color::RESET;
-        return;
+        return false;
     }
 
     for (int i = 0; i < doc.getLineCount(); i++)
@@ -373,15 +424,19 @@ void saveFile(Document& doc, string& currentFile)
         file << doc.getLine(i) << '\n';
     }
 
+    file.flush();
+
     if (!file)
     {
         cout << Color::RED << "Error: Problem writing to file!\n"
              << Color::RESET;
-        return;
+        return false;
     }
 
     cout << Color::GREEN << "File saved successfully!\n"
          << Color::RESET;
+
+    return true;
 }
 int main()
 {
@@ -390,7 +445,7 @@ int main()
 UndoManager undo;
 
 string currentFile = "";
-
+bool modified = false;
 int choice;
 
     displayHeader();
@@ -423,7 +478,7 @@ int choice;
             if (doc.appendLine(text))
             {
                 undo.recordLineInsert(index, text);
-
+modified = true;
                 cout << Color::GREEN
                      << "Line added successfully!\n"
                      << Color::RESET;
@@ -496,7 +551,7 @@ int choice;
 
             if (Replace::replaceFirst(doc, oldWord, newWord, &undo))
             {
-
+modified = true;
                 cout << Color::GREEN
                      << "First occurrence replaced successfully!\n"
                      << Color::RESET;
@@ -531,6 +586,7 @@ int choice;
 
             if (count > 0)
             {
+                modified = true;
                 cout << Color::GREEN
                      << "\n"
                      << count << " replacement(s) made!\n"
@@ -582,6 +638,7 @@ int choice;
 
             if (doc.insertText(line, column, text))
             {
+modified = true;
                 undo.recordInsert(line, column, text);
                 showBeforeAfter(before, doc);
 
@@ -639,6 +696,7 @@ int choice;
 
             if (doc.deleteText(line, column, length))
             {
+                modified = true;
                 undo.recordDelete(line, column, deletedText);
                 showBeforeAfter(before, doc);
 
@@ -666,6 +724,7 @@ int choice;
 
                 if (undo.undo(doc))
                 {
+                    modified = true;
 
                     cout << Color::GREEN
                          << "Last operation undone successfully!\n"
@@ -717,39 +776,62 @@ int choice;
         // NEW DOCUMENT
         case 10:
         {
-            newDocument(doc, undo, currentFile);
+            if (confirmUnsavedChanges(modified))
+            {
+                newDocument(doc, undo, currentFile);
+                modified = false;
+            }
             break;
         }
 
         // OPEN FILE
         case 11:
+{
+    if (confirmUnsavedChanges(modified))
+    {
+        if (openFile(doc, undo, currentFile))
         {
-            openFile(doc, undo, currentFile);
-            break;
+            modified = false;
         }
+    }
+    break;
+}
 
         // SAVE FILE
         case 12:
-        {
-            saveFile(doc, currentFile);
-            break;
-        }
+{
+    if (saveFile(doc, currentFile))
+    {
+        modified = false;
+    }
+    break;
+}
 
         // SAVE AS
         case 13:
         {
-            saveAs(doc, currentFile);
+            if (saveAs(doc, currentFile))
+            {
+                modified = false;
+            }
             break;
         }
 
         // EXIT
         case 14:
-        {
-            cout << Color::GREEN
-                 << "\nThank you for using Text Editor!\n"
-                 << Color::RESET;
-            break;
-        }
+{
+    if (confirmUnsavedChanges(modified))
+    {
+        cout << Color::GREEN
+             << "\nThank you for using Text Editor!\n"
+             << Color::RESET;
+    }
+    else
+    {
+        choice = 0;
+    }
+    break;
+}
         default:
         {
             cout << Color::RED
